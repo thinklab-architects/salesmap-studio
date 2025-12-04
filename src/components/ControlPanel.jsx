@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const ControlPanel = ({ projectData, onUpdateProject }) => {
   const [name, setName] = useState(projectData.name || '');
   const [address, setAddress] = useState(projectData.address || '');
   const [ringOption, setRingOption] = useState(projectData.ringMinutes.join(','));
   const [travelMode, setTravelMode] = useState('driving');
+  const [geminiKey, setGeminiKey] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const fetchGeocoding = async (queryAddress) => {
@@ -25,6 +27,41 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
       return null;
     } catch (error) {
       console.error("Geocoding error:", error);
+      return null;
+    }
+  };
+
+  const fetchGeminiPOIs = async (address, center, apiKey) => {
+    if (!apiKey) return null;
+
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+      const prompt = `
+        你是一個房地產專家。請針對「${address}」（經緯度：${center[1]}, ${center[0]}）
+        列出 4 個附近最重要的銷售亮點設施（例如捷運站、商圈、公園、學校、地標）。
+        
+        請回傳純 JSON 格式，不要有 markdown 標記。格式如下：
+        [
+          { "name": "設施名稱", "type": "類別(如捷運/商圈/公園)", "minutes": 預估開車分鐘數(整數), "lat": 緯度, "lng": 經度 }
+        ]
+        
+        注意：
+        1. 經緯度必須真實且在該地點附近。
+        2. minutes 請根據距離估算。
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      // Clean up markdown if present
+      const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(jsonStr);
+    } catch (error) {
+      console.error("Gemini API Error:", error);
+      alert("AI 生成失敗，請檢查 API Key 或稍後再試。");
       return null;
     }
   };
@@ -75,6 +112,17 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
       <div className="panel-header">
         <h1>自動生成銷售地圖</h1>
         <p>輸入案名與地址，系統將標示要點與車程同心圓</p>
+      </div>
+
+      <div className="form-group">
+        <label>Gemini API Key (選填)</label>
+        <input
+          type="password"
+          className="input-field"
+          placeholder="貼上 API Key 以啟用 AI 生成"
+          value={geminiKey}
+          onChange={(e) => setGeminiKey(e.target.value)}
+        />
       </div>
 
       <div className="form-group">
@@ -132,6 +180,8 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
 
       <p className="hint-text">
         {import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ? '已連接 Mapbox Geocoding API' : '未設定 Mapbox Token'}
+        <br />
+        {geminiKey ? '已啟用 Gemini AI' : '使用預設 POI (填入 Key 以啟用 AI)'}
       </p>
 
       <div className="poi-section">

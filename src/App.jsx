@@ -20,6 +20,16 @@ function App() {
         setProjectData(newData);
     };
 
+    if (!import.meta.env.VITE_MAPBOX_ACCESS_TOKEN) {
+        return (
+            <div style={{ padding: '40px', textAlign: 'center', fontFamily: 'sans-serif' }}>
+                <h1 style={{ color: '#ef4444' }}>Missing Configuration</h1>
+                <p>Mapbox Access Token is missing.</p>
+                <p>Please add <code>VITE_MAPBOX_ACCESS_TOKEN</code> to your environment variables or GitHub Secrets.</p>
+            </div>
+        );
+    }
+
     return (
         <>
             <header className="app-header">

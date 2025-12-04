@@ -1,6 +1,7 @@
 {
   "name": "salesmap-studio",
   "private": true,
+  "homepage": "https://thinklab-architects.github.io/salesmap-studio/",
   "version": "0.0.0",
   "type": "module",
   "scripts": {

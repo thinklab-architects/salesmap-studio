@@ -81,15 +81,30 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
       if (result) {
         newCenter = result.center; // [lng, lat]
 
-        // 2. Mock POIs relative to new center (Simulating AI)
-        // Simple offset to create "nearby" points
-        const [lng, lat] = newCenter;
-        newPois = [
-          { name: '最近捷運站', type: '捷運站', minutes: 3, coord: [lng + 0.004, lat + 0.002] },
-          { name: '核心商圈', type: '商業機能', minutes: 5, coord: [lng - 0.003, lat - 0.001] },
-          { name: '文化園區', type: '文化 / 展演', minutes: 7, coord: [lng + 0.002, lat - 0.004] },
-          { name: '知名地標', type: '地標', minutes: 4, coord: [lng - 0.002, lat + 0.003] }
-        ];
+        // 2. Fetch Gemini POIs
+        const apiKey = geminiKey || import.meta.env.VITE_GEMINI_API_KEY;
+        if (apiKey) {
+          const aiPois = await fetchGeminiPOIs(address, newCenter, apiKey, poiCount);
+          if (aiPois) {
+            newPois = aiPois.map(p => ({
+              name: p.name,
+              type: p.type,
+              minutes: p.minutes,
+              coord: [p.lng, p.lat]
+            }));
+          }
+        } else {
+          // Fallback to mock if no key provided
+          const [lng, lat] = newCenter;
+          // Generate mock POIs based on count (just duplicating for demo if count > 4)
+          const baseMock = [
+            { name: '最近捷運站', type: '捷運站', minutes: 3, coord: [lng + 0.004, lat + 0.002] },
+            { name: '核心商圈', type: '商業機能', minutes: 5, coord: [lng - 0.003, lat - 0.001] },
+            { name: '文化園區', type: '文化 / 展演', minutes: 7, coord: [lng + 0.002, lat - 0.004] },
+            { name: '知名地標', type: '地標', minutes: 4, coord: [lng - 0.002, lat + 0.003] }
+          ];
+          newPois = Array(poiCount).fill(null).map((_, i) => baseMock[i % baseMock.length]);
+        }
       } else {
         alert("找不到此地址，請嘗試更詳細的地址！");
       }
@@ -122,6 +137,18 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
           placeholder="貼上 API Key 以啟用 AI 生成"
           value={geminiKey}
           onChange={(e) => setGeminiKey(e.target.value)}
+        />
+      </div>
+
+      <div className="form-group">
+        <label>POI 數量</label>
+        <input
+          type="number"
+          className="input-field"
+          min="1"
+          max="10"
+          value={poiCount}
+          onChange={(e) => setPoiCount(parseInt(e.target.value) || 4)}
         />
       </div>
 

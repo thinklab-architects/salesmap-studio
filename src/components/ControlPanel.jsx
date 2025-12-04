@@ -5,18 +5,69 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
   const [address, setAddress] = useState(projectData.address || '');
   const [ringOption, setRingOption] = useState(projectData.ringMinutes.join(','));
   const [travelMode, setTravelMode] = useState('driving');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleGenerate = () => {
+  const fetchGeocoding = async (queryAddress) => {
+    const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+    if (!token) {
+      alert("Mapbox Token not found!");
+      return null;
+    }
+
+    try {
+      const response = await fetch(
+        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(queryAddress)}.json?access_token=${token}&country=TW&limit=1`
+      );
+      const data = await response.json();
+      if (data.features && data.features.length > 0) {
+        return data.features[0];
+      }
+      return null;
+    } catch (error) {
+      console.error("Geocoding error:", error);
+      return null;
+    }
+  };
+
+  const handleGenerate = async () => {
+    setIsLoading(true);
+
     // Parse ring option string "5,10,15" -> [5, 10, 15]
     const rings = ringOption.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-    
+
+    let newCenter = projectData.center;
+    let newPois = projectData.pois;
+
+    // 1. Fetch Geocoding
+    if (address) {
+      const result = await fetchGeocoding(address);
+      if (result) {
+        newCenter = result.center; // [lng, lat]
+
+        // 2. Mock POIs relative to new center (Simulating AI)
+        // Simple offset to create "nearby" points
+        const [lng, lat] = newCenter;
+        newPois = [
+          { name: '最近捷運站', type: '捷運站', minutes: 3, coord: [lng + 0.004, lat + 0.002] },
+          { name: '核心商圈', type: '商業機能', minutes: 5, coord: [lng - 0.003, lat - 0.001] },
+          { name: '文化園區', type: '文化 / 展演', minutes: 7, coord: [lng + 0.002, lat - 0.004] },
+          { name: '知名地標', type: '地標', minutes: 4, coord: [lng - 0.002, lat + 0.003] }
+        ];
+      } else {
+        alert("找不到此地址，請嘗試更詳細的地址！");
+      }
+    }
+
     onUpdateProject({
       ...projectData,
       name,
       address,
+      center: newCenter,
+      pois: newPois,
       ringMinutes: rings.length > 0 ? rings : [5, 10, 15],
-      // In a real app, we would fetch new coordinates and POIs here
     });
+
+    setIsLoading(false);
   };
 
   return (
@@ -45,6 +96,7 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
           placeholder="例如：台北市信義區市府路45號"
           value={address}
           onChange={(e) => setAddress(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
         />
       </div>
 
@@ -74,11 +126,13 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         </select>
       </div>
 
-      <button className="btn-primary" onClick={handleGenerate}>
-        ⚡ 生成銷售地圖
+      <button className="btn-primary" onClick={handleGenerate} disabled={isLoading}>
+        {isLoading ? '生成中...' : '⚡ 生成銷售地圖'}
       </button>
 
-      <p className="hint-text">目前資料是示意用，未接真實 Geocoding / POI / AI API</p>
+      <p className="hint-text">
+        {import.meta.env.VITE_MAPBOX_ACCESS_TOKEN ? '已連接 Mapbox Geocoding API' : '未設定 Mapbox Token'}
+      </p>
 
       <div className="poi-section">
         <h3>重點設施（AI 精選示意）</h3>

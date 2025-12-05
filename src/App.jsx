@@ -61,11 +61,18 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
             const response = await result.response;
             const text = response.text();
 
+            console.log("Gemini API Response:", text);
+
             // Clean up markdown if present
             const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            return JSON.parse(jsonStr);
+            console.log("Cleaned JSON:", jsonStr);
+
+            const parsed = JSON.parse(jsonStr);
+            console.log("Parsed POIs:", parsed);
+            return parsed;
         } catch (error) {
             console.error("Gemini API Error:", error);
+            console.error("Error details:", error.message, error.stack);
             alert("AI 生成失敗，請檢查 API Key 或稍後再試。");
             return null;
         }

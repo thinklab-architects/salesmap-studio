@@ -1,14 +1,37 @@
 <!doctype html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="./vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SalesMap Studio</title>
-    <script type="module" crossorigin src="./assets/index-Z4tcXsex.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CR_YdqqA.css">
-  </head>
-  <body>
-    <div id="root"></div>
-  </body>
+
+<head>
+  <meta charset="UTF-8" />
+  <link rel="icon" type="image/svg+xml" href="/salesmap-studio/vite.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SalesMap Studio</title>
+  <script>
+    window.onerror = function (message, source, lineno, colno, error) {
+      const errorDiv = document.createElement('div');
+      errorDiv.style.position = 'fixed';
+      errorDiv.style.top = '0';
+      errorDiv.style.left = '0';
+      errorDiv.style.width = '100%';
+      errorDiv.style.backgroundColor = '#fee2e2';
+      errorDiv.style.color = '#991b1b';
+      errorDiv.style.padding = '20px';
+      errorDiv.style.zIndex = '9999';
+      errorDiv.style.fontFamily = 'monospace';
+      errorDiv.style.whiteSpace = 'pre-wrap';
+      errorDiv.innerHTML = '<strong>Global Error:</strong><br>' +
+        message + '<br>' +
+        source + ':' + lineno + ':' + colno + '<br>' +
+        (error ? error.stack : '');
+      document.body.appendChild(errorDiv);
+    };
+  </script>
+  <script type="module" crossorigin src="/salesmap-studio/assets/index-B2S9lqmh.js"></script>
+  <link rel="stylesheet" crossorigin href="/salesmap-studio/assets/index-CR_YdqqA.css">
+</head>
+
+<body>
+  <div id="root"></div>
+</body>
+
 </html>

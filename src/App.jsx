@@ -49,14 +49,12 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         你是一個房地產專家。請針對「${address}」（經緯度：${center[1]}, ${center[0]}）
         列出 ${count} 個附近最重要的銷售亮點設施（例如捷運站、商圈、公園、學校、地標）。
         
+        請務必提供每個設施「真實且精確的經緯度座標」（請精確到小數點後 5 位），以便在地圖上準確標示。不要使用一般的區域中心點。
+        
         請回傳純 JSON 格式，不要有 markdown 標記。格式如下：
         [
-          { "name": "設施名稱", "type": "類別(如捷運/商圈/公園)", "minutes": 預估開車分鐘數(整數), "lat": 緯度, "lng": 經度 }
+          { "name": "設施名稱", "type": "類別", "minutes": 預估開車分鐘數(整數), "lat": 緯度(Number), "lng": 經度(Number) }
         ]
-        
-        注意：
-        1. 經緯度必須真實且在該地點附近。
-        2. minutes 請根據距離估算。
       `;
 
             const result = await model.generateContent(prompt);

@@ -49,12 +49,12 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         你是一個房地產專家。請針對「${address}」（經緯度：${center[1]}, ${center[0]}）
         列出 ${count} 個附近最重要的銷售亮點設施（例如捷運站、商圈、公園、學校、地標）。
         
-        請提供每個設施的「完整名稱」與「大概位置」。
-        由於你需要提供精確位置，請儘量提供該設施的「地址」或「交叉路口」，以便後續校正。
+        請提供每個設施的「完整名稱」與「完整真實地址」。
+        為了讓地圖定位準確，地址請務必包含「縣市」、「鄉鎮市區」及「路名」，越詳細越好。不要只給路名。
         
         請回傳純 JSON 格式，不要有 markdown 標記。格式如下：
         [
-          { "name": "設施名稱", "type": "類別", "minutes": 預估開車分鐘數(整數), "address": "設施地址或路口", "lat": 參考緯度, "lng": 參考經度 }
+          { "name": "設施名稱", "type": "類別", "minutes": 預估開車分鐘數(整數), "address": "完整詳細地址(含縣市區)", "lat": 參考緯度, "lng": 參考經度 }
         ]
       `;
 
@@ -83,10 +83,13 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
 
         const updated = await Promise.all(pois.map(async (poi) => {
             try {
-                // Search Mapbox for the POI name + address near the project center
-                const query = `${poi.name} ${poi.address || ''}`;
+                // Determine best query for Mapbox
+                // If address is detailed (length > 5), use it directly. Otherwise combine name + address.
+                const queryAddress = poi.address && poi.address.length > 5 ? poi.address : `${poi.name} ${poi.address || ''}`;
+
+                // Use proximity strictly to avoid jumping to other cities (e.g. Taipei 7-11 vs Pingtung 7-11)
                 const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=TW&proximity=${centerLng},${centerLat}&limit=1`
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(queryAddress)}.json?access_token=${token}&country=TW&proximity=${centerLng},${centerLat}&limit=1&types=poi,address`
                 );
                 const data = await response.json();
 
@@ -473,15 +476,15 @@ const MapView = ({ projectData }) => {
 
 function App() {
     const [projectData, setProjectData] = useState({
-        name: '信義璞園',
-        address: '台北市信義區市府路45號',
-        center: [121.5654, 25.0375],
+        name: '品森居',
+        address: '920屏東縣潮州鎮光復路一段28巷',
+        center: [120.5435, 22.5505], // Approx Chaozhou center
         ringMinutes: [5, 10, 15],
         pois: [
-            { name: '市政府捷運站', type: '捷運站', minutes: 3, coord: [121.5645, 25.0410] },
-            { name: '信義商圈', type: '商業機能', minutes: 5, coord: [121.5665, 25.0355] },
-            { name: '松山文創園區', type: '文化 / 展演', minutes: 7, coord: [121.5598, 25.0440] },
-            { name: '台北 101', type: '地標', minutes: 4, coord: [121.5640, 25.0330] }
+            { name: '潮州火車站', type: '交通', minutes: 5, coord: [120.5365, 22.5505] },
+            { name: '潮州圓環', type: '商圈', minutes: 3, coord: [120.5400, 22.5530] },
+            { name: '潮好玩幸福村', type: '公園', minutes: 8, coord: [120.5480, 22.5450] },
+            { name: '814生鮮超市', type: '購物', minutes: 2, coord: [120.5420, 22.5510] }
         ]
     });
 

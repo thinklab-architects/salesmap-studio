@@ -11,11 +11,29 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
     const [ringOption, setRingOption] = useState(projectData.ringMinutes.join(','));
     const [travelMode, setTravelMode] = useState('driving');
     const [geminiKey, setGeminiKey] = useState('');
+    const [googleMapsKey, setGoogleMapsKey] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
     const [poiCount, setPoiCount] = useState(4);
 
     const fetchGeocoding = async (queryAddress) => {
+        // 1. Try Google Maps first if Key is present
+        if (googleMapsKey) {
+            try {
+                const response = await fetch(
+                    `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(queryAddress)}&key=${googleMapsKey}&language=zh-TW`
+                );
+                const data = await response.json();
+                if (data.status === 'OK' && data.results.length > 0) {
+                    const loc = data.results[0].geometry.location;
+                    return { center: [loc.lng, loc.lat] };
+                }
+            } catch (error) {
+                console.error("Google Geocoding error:", error);
+            }
+        }
+
+        // 2. Fallback to Mapbox
         const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
         if (!token) {
             alert("Mapbox Token not found!");
@@ -74,31 +92,49 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         }
     };
 
-    // Helper to correct AI coordinates using Mapbox
+    // Helper to correct AI coordinates using Mapbox or Google
     const correctPOILocations = async (pois, centerLat, centerLng) => {
         if (!pois || !Array.isArray(pois)) return [];
 
-        const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
-        if (!token) return pois;
+        const mapboxToken = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
 
         const updated = await Promise.all(pois.map(async (poi) => {
             try {
-                // Determine best query for Mapbox
-                // If address is detailed (length > 5), use it directly. Otherwise combine name + address.
+                // Determine best query
                 const queryAddress = poi.address && poi.address.length > 5 ? poi.address : `${poi.name} ${poi.address || ''}`;
 
-                // Use proximity strictly to avoid jumping to other cities (e.g. Taipei 7-11 vs Pingtung 7-11)
-                const response = await fetch(
-                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(queryAddress)}.json?access_token=${token}&country=TW&proximity=${centerLng},${centerLat}&limit=1&types=poi,address`
-                );
-                const data = await response.json();
-
-                if (data.features && data.features.length > 0) {
-                    const [realLng, realLat] = data.features[0].center;
-                    return { ...poi, coord: [realLng, realLat], manual: false }; // Found real location
-                } else {
-                    return { ...poi, coord: [poi.lng, poi.lat], manual: true }; // Fallback to AI guess
+                // A. Google Maps (Priority)
+                if (googleMapsKey) {
+                    try {
+                        const gRes = await fetch(
+                            `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(queryAddress)}&key=${googleMapsKey}&language=zh-TW`
+                        );
+                        const gData = await gRes.json();
+                        if (gData.status === 'OK' && gData.results.length > 0) {
+                            const loc = gData.results[0].geometry.location;
+                            return { ...poi, coord: [loc.lng, loc.lat], manual: false, source: 'google' };
+                        }
+                    } catch (e) {
+                        console.warn("Google Geocoding failed for", poi.name, e);
+                    }
                 }
+
+                // B. Mapbox (Fallback)
+                if (mapboxToken) {
+                    const response = await fetch(
+                        `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(queryAddress)}.json?access_token=${mapboxToken}&country=TW&proximity=${centerLng},${centerLat}&limit=1&types=poi,address`
+                    );
+                    const data = await response.json();
+
+                    if (data.features && data.features.length > 0) {
+                        const [realLng, realLat] = data.features[0].center;
+                        return { ...poi, coord: [realLng, realLat], manual: false, source: 'mapbox' }; // Found real location
+                    }
+                }
+
+                // C. AI Guess (Last Resort)
+                return { ...poi, coord: [poi.lng, poi.lat], manual: true };
+
             } catch (e) {
                 console.warn("Geocoding failed for", poi.name, e);
                 return { ...poi, coord: [poi.lng, poi.lat], manual: true };
@@ -130,7 +166,7 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
                     if (aiResult && aiResult.error) {
                         setErrorMsg(aiResult.error);
                     } else if (aiResult) {
-                        // 3. CORRECT LOCATIONS using Mapbox
+                        // 3. CORRECT LOCATIONS
                         newPois = await correctPOILocations(aiResult, newCenter[1], newCenter[0]);
                     }
                 } else {
@@ -178,6 +214,20 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
                     value={geminiKey}
                     onChange={(e) => setGeminiKey(e.target.value)}
                 />
+            </div>
+
+            <div className="form-group">
+                <label>Google Maps Key (高精準定位 / 選填)</label>
+                <input
+                    type="password"
+                    className="input-field"
+                    value={googleMapsKey}
+                    onChange={(e) => setGoogleMapsKey(e.target.value)}
+                    placeholder="輸入 Google Maps Geocoding Key"
+                />
+                <small style={{ display: 'block', color: '#666', marginTop: '4px', fontSize: '0.8em' }}>
+                    若未填寫則使用 Mapbox 定位。填寫後可大幅提升位置準確度。
+                </small>
             </div>
 
             <div className="form-group">

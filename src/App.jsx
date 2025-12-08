@@ -49,11 +49,12 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         你是一個房地產專家。請針對「${address}」（經緯度：${center[1]}, ${center[0]}）
         列出 ${count} 個附近最重要的銷售亮點設施（例如捷運站、商圈、公園、學校、地標）。
         
-        請務必提供每個設施「真實且精確的經緯度座標」（請精確到小數點後 8 位），以便在地圖上準確標示。不要使用一般的區域中心點。
+        請提供每個設施的「完整名稱」與「大概位置」。
+        由於你需要提供精確位置，請儘量提供該設施的「地址」或「交叉路口」，以便後續校正。
         
         請回傳純 JSON 格式，不要有 markdown 標記。格式如下：
         [
-          { "name": "設施名稱", "type": "類別", "minutes": 預估開車分鐘數(整數), "lat": 緯度(Number), "lng": 經度(Number) }
+          { "name": "設施名稱", "type": "類別", "minutes": 預估開車分鐘數(整數), "address": "設施地址或路口", "lat": 參考緯度, "lng": 參考經度 }
         ]
       `;
 
@@ -61,27 +62,51 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
             const response = await result.response;
             const text = response.text();
 
-            console.log("Gemini API Response:", text);
-
             // Clean up markdown if present
             const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-            console.log("Cleaned JSON:", jsonStr);
-
             const parsed = JSON.parse(jsonStr);
-            console.log("Parsed POIs:", parsed);
-            return parsed;
+            return parsed; // Return raw AI results
         } catch (error) {
             console.error("Gemini API Error:", error);
             const msg = `AI Error: ${error.message || error.toString()}`;
             console.error(msg);
-            // alert("AI 生成失敗，請檢查 API Key 或稍後再試。"); // Removed alert
             return { error: msg };
         }
     };
 
+    // Helper to correct AI coordinates using Mapbox
+    const correctPOILocations = async (pois, centerLat, centerLng) => {
+        if (!pois || !Array.isArray(pois)) return [];
+
+        const token = import.meta.env.VITE_MAPBOX_ACCESS_TOKEN;
+        if (!token) return pois;
+
+        const updated = await Promise.all(pois.map(async (poi) => {
+            try {
+                // Search Mapbox for the POI name + address near the project center
+                const query = `${poi.name} ${poi.address || ''}`;
+                const response = await fetch(
+                    `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${token}&country=TW&proximity=${centerLng},${centerLat}&limit=1`
+                );
+                const data = await response.json();
+
+                if (data.features && data.features.length > 0) {
+                    const [realLng, realLat] = data.features[0].center;
+                    return { ...poi, coord: [realLng, realLat], manual: false }; // Found real location
+                } else {
+                    return { ...poi, coord: [poi.lng, poi.lat], manual: true }; // Fallback to AI guess
+                }
+            } catch (e) {
+                console.warn("Geocoding failed for", poi.name, e);
+                return { ...poi, coord: [poi.lng, poi.lat], manual: true };
+            }
+        }));
+        return updated;
+    };
+
     const handleGenerate = async () => {
         setIsLoading(true);
-        setErrorMsg(''); // Clear previous errors
+        setErrorMsg('');
 
         // Parse ring option string "5,10,15" -> [5, 10, 15]
         const rings = ringOption.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
@@ -89,7 +114,7 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         let newCenter = projectData.center;
         let newPois = projectData.pois;
 
-        // 1. Fetch Geocoding
+        // 1. Fetch Geocoding for Project Address
         if (address) {
             const result = await fetchGeocoding(address);
             if (result) {
@@ -98,17 +123,12 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
                 // 2. Fetch Gemini POIs
                 const apiKey = geminiKey || import.meta.env.VITE_GEMINI_API_KEY;
                 if (apiKey) {
-                    const result = await fetchGeminiPOIs(address, newCenter, apiKey, poiCount);
-                    if (result && result.error) {
-                        setErrorMsg(result.error);
-                        // Fallback to mock
-                    } else if (result) {
-                        newPois = result.map(p => ({
-                            name: p.name,
-                            type: p.type,
-                            minutes: p.minutes,
-                            coord: [p.lng, p.lat]
-                        }));
+                    const aiResult = await fetchGeminiPOIs(address, newCenter, apiKey, poiCount);
+                    if (aiResult && aiResult.error) {
+                        setErrorMsg(aiResult.error);
+                    } else if (aiResult) {
+                        // 3. CORRECT LOCATIONS using Mapbox
+                        newPois = await correctPOILocations(aiResult, newCenter[1], newCenter[0]);
                     }
                 } else {
                     // Fallback to mock if no key provided

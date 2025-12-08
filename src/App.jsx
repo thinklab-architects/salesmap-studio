@@ -12,6 +12,7 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
     const [travelMode, setTravelMode] = useState('driving');
     const [geminiKey, setGeminiKey] = useState('');
     const [isLoading, setIsLoading] = useState(false);
+    const [errorMsg, setErrorMsg] = useState('');
     const [poiCount, setPoiCount] = useState(4);
 
     const fetchGeocoding = async (queryAddress) => {
@@ -73,14 +74,16 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
             return parsed;
         } catch (error) {
             console.error("Gemini API Error:", error);
-            console.error("Error details:", error.message, error.stack);
-            alert("AI 生成失敗，請檢查 API Key 或稍後再試。");
-            return null;
+            const msg = `AI Error: ${error.message || error.toString()}`;
+            console.error(msg);
+            // alert("AI 生成失敗，請檢查 API Key 或稍後再試。"); // Removed alert
+            return { error: msg };
         }
     };
 
     const handleGenerate = async () => {
         setIsLoading(true);
+        setErrorMsg(''); // Clear previous errors
 
         // Parse ring option string "5,10,15" -> [5, 10, 15]
         const rings = ringOption.split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
@@ -97,9 +100,12 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
                 // 2. Fetch Gemini POIs
                 const apiKey = geminiKey || import.meta.env.VITE_GEMINI_API_KEY;
                 if (apiKey) {
-                    const aiPois = await fetchGeminiPOIs(address, newCenter, apiKey, poiCount);
-                    if (aiPois) {
-                        newPois = aiPois.map(p => ({
+                    const result = await fetchGeminiPOIs(address, newCenter, apiKey, poiCount);
+                    if (result && result.error) {
+                        setErrorMsg(result.error);
+                        // Fallback to mock
+                    } else if (result) {
+                        newPois = result.map(p => ({
                             name: p.name,
                             type: p.type,
                             minutes: p.minutes,
@@ -223,6 +229,12 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
                 <br />
                 {geminiKey ? '已啟用 Gemini AI' : '使用預設 POI (填入 Key 以啟用 AI)'}
             </p>
+
+            {errorMsg && (
+                <div style={{ backgroundColor: '#fee2e2', color: '#dc2626', padding: '10px', borderRadius: '4px', marginBottom: '10px', fontSize: '0.9em' }}>
+                    <strong>錯誤：</strong> {errorMsg}
+                </div>
+            )}
 
             <div className="poi-section">
                 <h3>重點設施（AI 精選示意）</h3>

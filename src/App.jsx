@@ -40,9 +40,9 @@ const ControlPanel = ({ projectData, onUpdateProject }) => {
         if (!apiKey) return null;
 
         try {
-            console.log('[fetchGeminiPOIs] Initializing Gemini API with model: gemini-1.5-flash-latest');
+            console.log('[fetchGeminiPOIs] Initializing Gemini API with model: gemini-2.5-flash');
             const genAI = new GoogleGenerativeAI(apiKey);
-            const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+            const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
             const prompt = `
         你是一個房地產專家。請針對「${address}」（經緯度：${center[1]}, ${center[0]}）
